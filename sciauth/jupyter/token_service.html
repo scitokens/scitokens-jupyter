@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SciAuth for Jupyter</title>
+</head>
+<body>
+    <h1>SciAuth for Jupyter</h1>
+    <p>
+        This Jupyter service has been configured with the following issuers:
+    </p>
+    <ul>
+        {% for issuer in oauth2_config %}
+        <li>
+            {{ issuer.name }}:
+            1. <a href="{{ service_base_url }}tokens/{{ issuer.id }}/auth?next={{ next_url }}">Authorize</a>
+            2. <a href="{{ service_base_url }}tokens/{{ issuer.id }}">Fetch token</a>
+        </li>
+        {% end %}
+    </ul>
+    <p>
+        <a href="{{ jupyterhub_base_url }}hub/user-redirect/lab">Return to your workspace.</a>
+    </p>
+</body>
