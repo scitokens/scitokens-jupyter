@@ -13,7 +13,7 @@
         {% for issuer in oauth2_config %}
         <li>
             {{ issuer.name }}:
-            1. <a href="{{ service_base_url }}tokens/{{ issuer.id }}/auth?next={{ next_url }}">Authorize</a>
+            1. <a href="{{ service_base_url }}tokens/{{ issuer.id }}/auth">Authorize</a>
             2. <a href="{{ service_base_url }}tokens/{{ issuer.id }}">Fetch token</a>
         </li>
         {% end %}

@@ -8,7 +8,6 @@ import os
 import pathlib
 import secrets
 import time
-import urllib.parse
 from typing import Any, Dict, List, Literal, Optional
 
 import oauthlib.oauth2.rfc6749.errors  # type: ignore[import]
@@ -27,6 +26,12 @@ CONFIG_FILE = pathlib.Path("/etc/sciauth/jupyterhub_svc_config.yaml")
 JUPYTERHUB_BASE_URL = os.environ["JUPYTERHUB_BASE_URL"]
 SERVICE_PORT = int(os.environ["_sciauth_SERVICE_PORT"])
 SERVICE_BASE_URL = os.environ["JUPYTERHUB_SERVICE_PREFIX"]
+
+
+# Instruct `oauthlib` to ignore differences between the requested and
+# granted access token scopes.
+
+os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"  # nosec
 
 
 # As long as everything runs in a single thread, we can use any mutable
@@ -106,13 +111,10 @@ class IndexHandler(auth.HubOAuthenticated, web.RequestHandler):
     def get(self):
         html = TEMPLATES.load("token_service.html")
 
-        request_url = f"https://{self.request.host}{self.request.uri}"
-
         self.finish(
             html.generate(
                 oauth2_config=self._config.oauth2,
                 jupyterhub_base_url=JUPYTERHUB_BASE_URL,
-                next_url=request_url,
                 service_base_url=SERVICE_BASE_URL,
             )
         )
@@ -156,33 +158,20 @@ class OAuth2IssuerHandler(auth.HubOAuthenticated, web.RequestHandler):
         self._config = config
 
     @web.authenticated
-    def get(self):
-        # This method parses the request URL and, based on what it finds,
-        # calls a specific method to handle the request.
+    def get(self, is_auth):
+        ## FIXME: Do not hard-code the service's name.
 
         self._request_url = f"https://{self.request.host}{self.request.uri}"
         self._callback_url = f"https://{self.request.host}{self.request.path}"
         self._uid = self.get_current_user()["name"]
 
-        parsed_url = urllib.parse.urlparse(self._request_url)
-        path_parts = pathlib.Path(parsed_url.path).parts
-
-        # At this point, `path_parts` should look like:
-        #
-        #     ["/", "services", "sciauth", "tokens", self._config.id, ...]
-
-        if len(path_parts) in [5, 6]:
-            if path_parts[-2:] == ["tokens", self._config.id]:
-                self._process_fetch_request()
-            elif path_parts[-3:] == ["tokens", self._config.id, "auth"]:
-                if self.get_argument("code", default=None):
-                    self._process_auth_callback()
-                else:
-                    self._process_auth_request()
+        if is_auth:
+            if self.get_argument("code", default=None):
+                self._process_auth_callback()
             else:
-                self._finish_with_error(400, "Malformed request")
+                self._process_auth_request()
         else:
-            self._finish_with_error(400, "Malformed request")
+            self._process_fetch_request()
 
     def _finish_with_error(self, status: int, message: str) -> None:
         resp = APIResponse("error", {"message": message})
@@ -191,15 +180,13 @@ class OAuth2IssuerHandler(auth.HubOAuthenticated, web.RequestHandler):
         self.finish(resp.asdict())
 
     def _process_auth_request(self) -> None:
-        next_url = self.get_argument("next", default=None)
-
         session = requests_oauthlib.OAuth2Session(
             self._config.client_id,
             scope=self._config.scope,
             redirect_uri=self._callback_url,
         )
 
-        auth_url, state = session.authorization_url(self._config.auth_url, next=next_url)
+        auth_url, state = session.authorization_url(self._config.auth_url)
 
         csrf_cache[self._uid] = state
 
@@ -207,7 +194,6 @@ class OAuth2IssuerHandler(auth.HubOAuthenticated, web.RequestHandler):
 
     def _process_auth_callback(self) -> None:
         state = self.get_argument("state")
-        next_url = self.get_argument("next", default=None)
 
         if state == csrf_cache[self._uid]:
 
@@ -225,10 +211,7 @@ class OAuth2IssuerHandler(auth.HubOAuthenticated, web.RequestHandler):
 
             self._put_token_into_cache(new_token)
 
-            if next_url:
-                self.redirect(next_url)
-            else:
-                self.finish(APIResponse("ok", {}).asdict())
+            self.redirect(SERVICE_BASE_URL)
 
         else:
             self._finish_with_error(400, "Invalid state")
@@ -298,7 +281,7 @@ def main() -> None:
     for issuer in config.oauth2:
         handlers.append(
             (
-                SERVICE_BASE_URL + f"tokens/{issuer.id}",
+                SERVICE_BASE_URL + f"tokens/{issuer.id}(/auth)?",
                 OAuth2IssuerHandler,
                 {"config": issuer},
             )
