@@ -40,13 +40,13 @@ sqlite_cache = true
 
 
 [tool.poetry]
-name = "sciauth_jupyter"
-version = "0.0.2"
-description = "Support for SciAuth for Project Jupyter"
+name = "scitokens_jupyter"
+version = "0.0.3"
+description = "Support for SciTokens for Project Jupyter"
 license = "Apache-2.0"
 authors = ["Brian Aydemir <baydemir@morgridge.org>"]
-repository = "https://github.com/scitokens/sciauth-jupyter"
-packages = [{ include = "sciauth" }]
+repository = "https://github.com/scitokens/scitokens-jupyter"
+packages = [{ include = "scitokens" }]
 
 
 [tool.poetry.dependencies]

@@ -3,8 +3,8 @@
 
 .PHONY: all build clean lint reformat
 
-PY_FILES := sciauth/
-PY_WHEEL_BASENAME := sciauth_jupyter
+PY_FILES := scitokens/
+PY_WHEEL_BASENAME := scitokens_jupyter
 
 all: reformat lint build
 

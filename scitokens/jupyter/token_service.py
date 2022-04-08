@@ -16,7 +16,7 @@ from baydemir import parsing
 from jupyterhub.services import auth  # type: ignore[import]
 from tornado import ioloop, template, web
 
-from sciauth.jupyter import token_db
+from scitokens.jupyter import token_db
 
 THIS_FILE = pathlib.Path(__file__)
 THIS_DIR = THIS_FILE.parent
