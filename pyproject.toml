@@ -41,8 +41,8 @@ sqlite_cache = true
 
 [tool.poetry]
 name = "scitokens_jupyter"
-version = "0.0.3"
-description = "Support for SciTokens for Project Jupyter"
+version = "1.0.0rc1"
+description = "SciTokens token management service for Jupyter"
 license = "Apache-2.0"
 authors = ["Brian Aydemir <baydemir@morgridge.org>"]
 repository = "https://github.com/scitokens/scitokens-jupyter"
@@ -53,23 +53,26 @@ packages = [{ include = "scitokens" }]
 ## Dependencies that are tied to jupyterhub/k8s-hub:0.11.1.
 python = "~3.8"
 jupyterhub = "~1.3"
+requests = "~2.25"
 requests-oauthlib = "~1.3"
 tornado = "~6.1"
 
 ## Other dependencies.
-baydemir = "0.0.1"
+baydemir = "~1.0"
+oauthlib = "~3.2"
 
 
 [tool.poetry.dev-dependencies]
 bandit = "~1.7"
-black = "~22.3"
-docutils = "~0.18"
+black = "~22.6"
+docutils = "~0.19"
 isort = "~5.10"
-mypy = "~0.942"
-pre-commit = "~2.18"
-pylint = "~2.13"
+mypy = "~0.971"
+pre-commit = "~2.20"
+pylint = "~2.15"
 "ruamel.yaml.cmd" = "~0.5"
-safety = "~1.10"
+safety = "~2.1"
+types-requests = "~2.25"
 
 
 [tool.pylint.messages-control]
