@@ -10,7 +10,9 @@ import secrets
 import time
 from typing import Any, Dict, List, Literal, Optional
 
+import oauthlib.oauth2  # type: ignore[import]
 import oauthlib.oauth2.rfc6749.errors  # type: ignore[import]
+import requests
 import requests_oauthlib  # type: ignore[import]
 from baydemir import parsing
 from jupyterhub.services import auth  # type: ignore[import]
@@ -20,11 +22,12 @@ from scitokens.jupyter import token_db
 
 THIS_FILE = pathlib.Path(__file__)
 THIS_DIR = THIS_FILE.parent
-TEMPLATES = template.Loader(os.fspath(THIS_DIR))
+TEMPLATES = template.Loader(os.fspath(THIS_DIR / "templates"))
 
-CONFIG_FILE = pathlib.Path("/etc/sciauth/jupyterhub_svc_config.yaml")
+CONFIG_FILE = pathlib.Path("/etc/scitokens/jupyterhub_service.yaml")
 JUPYTERHUB_BASE_URL = os.environ["JUPYTERHUB_BASE_URL"]
-SERVICE_PORT = int(os.environ["_sciauth_SERVICE_PORT"])
+SERVICE_NAME = os.environ.get("SCITOKENS_SERVICE_NAME", "scitokens")
+SERVICE_PORT = int(os.environ["SCITOKENS_SERVICE_PORT"])
 SERVICE_BASE_URL = os.environ["JUPYTERHUB_SERVICE_PREFIX"]
 
 
@@ -39,6 +42,8 @@ os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"  # nosec
 # service is restarted.
 
 csrf_cache: Dict[str, Any] = {}
+
+device_code_cache: Dict[str, Any] = {}
 
 token_cache: token_db.OAuth2TokenDB = token_db.InMemoryOAuth2TokenDB()
 
@@ -56,12 +61,15 @@ class OAuth2IssuerConfig:
     token_url: str
     scope: str
 
+    ## URL for is this issuer uses the device flow.
+    device_auth_url: Optional[str] = None
+
 
 @dataclasses.dataclass
 class SecretOAuth2IssuerConfig(OAuth2IssuerConfig):
     ## Standard OAuth2 configuration values.
-    client_id: str
-    client_secret: str
+    client_id: str = ""
+    client_secret: str = ""
 
 
 @dataclasses.dataclass
@@ -109,7 +117,7 @@ class IndexHandler(auth.HubOAuthenticated, web.RequestHandler):
 
     @web.authenticated
     def get(self):
-        html = TEMPLATES.load("token_service.html")
+        html = TEMPLATES.load("index.html")
 
         self.finish(
             html.generate(
@@ -165,11 +173,13 @@ class OAuth2IssuerHandler(auth.HubOAuthenticated, web.RequestHandler):
         self._callback_url = f"https://{self.request.host}{self.request.path}"
         self._uid = self.get_current_user()["name"]
 
-        if is_auth:
+        if is_auth == "/auth":
             if self.get_argument("code", default=None):
                 self._process_auth_callback()
             else:
                 self._process_auth_request()
+        elif is_auth == "/device_auth":
+            self._process_device_auth_request()
         else:
             self._process_fetch_request()
 
@@ -216,8 +226,47 @@ class OAuth2IssuerHandler(auth.HubOAuthenticated, web.RequestHandler):
         else:
             self._finish_with_error(400, "Invalid state")
 
+    def _process_device_auth_request(self) -> None:
+        if self._config.device_auth_url:
+            client = oauthlib.oauth2.DeviceClient(self._config.client_id)
+            session = requests_oauthlib.OAuth2Session(
+                self._config.client_id,
+                client=client,
+                scope=self._config.scope,
+            )
+
+            auth_url, state = session.authorization_url(self._config.device_auth_url)
+
+            auth_data = requests.get(auth_url).json()
+
+            device_code_cache[self._uid] = auth_data["device_code"]
+
+            resp = APIResponse("ok", {"auth_data": auth_data})
+
+            self.finish(resp.asdict())
+
+        else:
+            self._finish_with_error(404, "Device authorization flow is not supported")
+
     def _process_fetch_request(self) -> None:
-        if token := self._get_token_from_cache():
+        if self._uid in device_code_cache:
+            client = oauthlib.oauth2.DeviceClient(self._config.client_id)
+
+            new_token = requests.post(
+                self._config.token_url,
+                data={
+                    "client_id": self._config.client_id,
+                    "scope": self._config.scope,
+                    "device_code": device_code_cache[self._uid],
+                    "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                },
+            ).json()
+
+            del device_code_cache[self._uid]
+
+            resp = APIResponse("ok", {"raw_token": new_token})
+
+        elif token := self._get_token_from_cache():
             if token.expires_in and (token.updated_at + token.expires_in - time.time()) <= 30:
                 if token := self._process_refresh_request(token):
                     resp = APIResponse("ok", {"token": token})
@@ -281,7 +330,7 @@ def main() -> None:
     for issuer in config.oauth2:
         handlers.append(
             (
-                SERVICE_BASE_URL + f"tokens/{issuer.id}(/auth)?",
+                SERVICE_BASE_URL + f"tokens/{issuer.id}(/auth|/device_auth)?",
                 OAuth2IssuerHandler,
                 {"config": issuer},
             )

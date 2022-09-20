@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SciTokens Token Management Service</title>
+</head>
+<body>
+    <h1>SciTokens Token Management Service</h1>
+    <p>
+        This service allows JupyterHub to fetch and store tokens on your
+        behalf for the token issuers listed below. Instructions for using
+        this service can be found below the list.
+    </p>
+    <ul>
+        {% for issuer in oauth2_config %}
+        <li>
+            {{ issuer.name }}:
+            1. <a href="{{ service_base_url }}tokens/{{ issuer.id }}/{{ "device_auth" if issuer.device_auth_url else "auth" }}">Authorize</a>
+            2. <a href="{{ service_base_url }}tokens/{{ issuer.id }}">Fetch token</a>
+        </li>
+        {% end %}
+    </ul>
+    <p>
+        <a href="{{ jupyterhub_base_url }}hub/user-redirect/lab">Return to your workspace.</a>
+    </p>
+    <h2>Instructions</h2>
+    <p>
+        Each token issuer supports the following actions:
+    </p>
+    <ul>
+        <li>
+            Authorize: Instructs this service to fetch a token from the
+            issuer on your behalf and to store it.
+        </li>
+        <li>
+            Fetch token: Returns a token that was previously fetched from
+            the issuer, if the token has not yet expired. If the issuer
+            supports refresh tokens, the token returned might differ from
+            a previously returned token.
+        </li>
+    </ul>
+</body>
