@@ -64,6 +64,9 @@ class OAuth2IssuerConfig:
     ## URL for is this issuer uses the device flow.
     device_auth_url: Optional[str] = None
 
+    ## Path to the public TLS certificate/key for this issuer.
+    tls_cert: Optional[str] = None
+
 
 @dataclasses.dataclass
 class SecretOAuth2IssuerConfig(OAuth2IssuerConfig):
@@ -237,7 +240,7 @@ class OAuth2IssuerHandler(auth.HubOAuthenticated, web.RequestHandler):
 
             auth_url, state = session.authorization_url(self._config.device_auth_url)
 
-            auth_data = requests.get(auth_url).json()
+            auth_data = requests.get(auth_url, verify=self._config.tls_cert).json()
 
             device_code_cache[self._uid] = auth_data["device_code"]
 
