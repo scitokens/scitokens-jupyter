@@ -272,15 +272,18 @@ class OAuth2IssuerHandler(auth.HubOAuthenticated, web.RequestHandler):
 
             del device_code_cache[self._uid]
 
-            resp = APIResponse("ok", {"raw_token": new_token})
+            self._put_token_into_cache(new_token)
 
-        elif token := self._get_token_from_cache():
+        if token := self._get_token_from_cache():
+            ## Keep the refresh token, if any, secret.
             if token.expires_in and (token.updated_at + token.expires_in - time.time()) <= 30:
                 if token := self._process_refresh_request(token):
+                    token.refresh_token = None
                     resp = APIResponse("ok", {"token": token})
                 else:
                     resp = APIResponse("error", {"message": "Failed to refresh token"})
             else:
+                token.refresh_token = None
                 resp = APIResponse("ok", {"token": token})
         else:
             resp = APIResponse("error", {"message": "No token available"})
