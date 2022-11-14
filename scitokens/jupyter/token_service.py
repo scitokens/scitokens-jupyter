@@ -266,6 +266,7 @@ class OAuth2IssuerHandler(auth.HubOAuthenticated, web.RequestHandler):
                     "device_code": device_code_cache[self._uid],
                     "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
                 },
+                verify=self._config.tls_cert,
             ).json()
 
             del device_code_cache[self._uid]
