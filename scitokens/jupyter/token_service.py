@@ -249,6 +249,7 @@ class OAuth2IssuerHandler(auth.HubOAuthenticated, web.RequestHandler):
                     url=auth_data["verification_uri"],
                     name=auth_data["verification_uri"],
                     code=auth_data["user_code"],
+                    service_base_url=SERVICE_BASE_URL,
                 )
             )
         else:
