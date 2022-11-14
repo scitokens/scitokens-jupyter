@@ -239,15 +239,18 @@ class OAuth2IssuerHandler(auth.HubOAuthenticated, web.RequestHandler):
             )
 
             auth_url, state = session.authorization_url(self._config.device_auth_url)
-
             auth_data = requests.get(auth_url, verify=self._config.tls_cert).json()
-
             device_code_cache[self._uid] = auth_data["device_code"]
 
-            resp = APIResponse("ok", {"auth_data": auth_data})
+            html = TEMPLATES.load("device-auth.html")
 
-            self.finish(resp.asdict())
-
+            self.finish(
+                html.generate(
+                    url=auth_data["verification_uri"],
+                    name=auth_data["verification_uri"],
+                    code=auth_data["user_code"],
+                )
+            )
         else:
             self._finish_with_error(404, "Device authorization flow is not supported")
 
